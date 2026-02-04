@@ -1,6 +1,6 @@
 ---
 name: bird
-description: X/Twitter CLI for reading, searching, posting, and engagement via cookies.
+description: X/Twitter CLI for reading, searching, and posting via cookies or Sweetistics.
 homepage: https://bird.fast
 metadata:
   {
@@ -30,15 +30,19 @@ metadata:
   }
 ---
 
-# bird 🐦
+# bird
 
-Fast X/Twitter CLI using GraphQL + cookie auth.
+Use `bird` to read/search X and post tweets/replies.
 
-## Install
+Quick start
+- `bird whoami`
+- `bird read <url-or-id>`
+- `bird thread <url-or-id>`
+- `bird search "query" -n 5`
 
-```bash
-# npm/pnpm/bun
-npm install -g @steipete/bird
+Posting (confirm with user first)
+- `bird tweet "text"`
+- `bird reply <id-or-url> "text"`
 
 # Homebrew (macOS, prebuilt binary)
 brew install steipete/tap/bird

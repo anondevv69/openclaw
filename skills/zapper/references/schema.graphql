@@ -1,0 +1,400 @@
+# Zapper GraphQL API — Key types and operations
+# Full schema: curl https://protocol.zapper.xyz/agents.txt
+# Endpoint: POST https://public.zapper.xyz/graphql
+# Auth: header x-zapper-api-key: YOUR_API_KEY
+
+scalar Address
+scalar Timestamp
+scalar BigDecimal
+
+enum Network {
+  ETHEREUM_MAINNET
+  POLYGON_MAINNET
+  OPTIMISM_MAINNET
+  ARBITRUM_MAINNET
+  BASE_MAINNET
+  BLAST_MAINNET
+  SOLANA_MAINNET
+  DEGEN_MAINNET
+  ZORA_MAINNET
+  MODE_MAINNET
+  ZKSYNC_MAINNET
+  LINEA_MAINNET
+  # ... (see full schema for all networks)
+}
+
+enum TransactionHistoryV2Perspective {
+  Signer
+  Receiver
+  All
+}
+
+enum TimeFrame {
+  HOUR
+  DAY
+  WEEK
+  MONTH
+  YEAR
+}
+
+enum Currency {
+  USD
+  EUR
+  GBP
+  CAD
+  CNY
+  KRW
+  JPY
+  RUB
+  AUD
+  NZD
+  CHF
+  SGD
+  INR
+  BRL
+  ETH
+  BTC
+  HKD
+  SEK
+  NOK
+  MXN
+  TRY
+}
+
+type Query {
+  portfolioV2(
+    addresses: [Address!]!
+    networks: [Network!]
+    chainIds: [Int!]
+    includeProxyAccounts: Boolean = true
+  ): PortfolioV2!
+
+  accounts(
+    addresses: [Address!]
+    ens: [String!]
+    basenames: [String!]
+    fids: [Float!]
+    farcasterUsernames: [String!]
+  ): [Account!]!
+
+  farcasterProfile(username: String, fid: Int): FarcasterProfile
+
+  fungibleTokenV2(address: Address!, chainId: Int!): FungibleToken
+  fungibleTokenBatchV2(tokens: [FungibleTokenInputV2!]!): [FungibleToken]!
+
+  tokenRanking(first: Int, after: String, fid: Int): FarcasterTokenFeedV2Connection!
+
+  tokenActivityFeed(
+    chainId: Int!
+    tokenAddress: String!
+    fid: Int!
+    first: Int
+    after: String
+    type: TokenChannelFeedType
+    filters: ChannelFeedFilterArgs
+  ): TokenChannelFeedConnection!
+
+  transactionHistoryV2(
+    subjects: [Address!]!
+    perspective: TransactionHistoryV2Perspective = Signer
+    first: Int = 10
+    after: String
+    filters: TransactionHistoryV2FiltersArgs
+  ): TransactionHistoryV2EntryConnection!
+}
+
+input FungibleTokenInputV2 {
+  address: Address!
+  chainId: Int!
+}
+
+type FungibleToken {
+  id: ID!
+  address: Address!
+  name: String!
+  symbol: String!
+  decimals: Int!
+  imageUrlV2: String
+  priceData: OnchainMarketData
+  holders(first: Float!, after: String): PaginatedSupportedTokenHolders
+  farcasterHolders(first: Int!, after: String): PaginatedSupportedTokenHolders
+  followedFarcasterHolders(fid: Int!, first: Int, after: String): PaginatedSupportedTokenHolders
+}
+
+type OnchainMarketData {
+  price(currency: Currency): Float
+  marketCap: Float
+  totalLiquidity(currency: Currency): Float
+  totalGasTokenLiquidity: Float
+  priceChange5m: Float
+  priceChange1h: Float
+  priceChange24h: Float
+  volume24h(currency: Currency): Float
+  priceTicks(currency: Currency!, timeFrame: TimeFrame!): [OnchainMarketDataPriceTick!]!
+  historicalPrice(currency: Currency, timestamp: Timestamp!): OnchainHistoricalPrice
+  latestSwaps(first: Int, after: String): OnchainMarketDataLatestSwapConnection!
+  latestFarcasterSwaps(first: Int, after: String, filters: OnchainMarketDataLatestFarcasterSwapFilterArgs): OnchainMarketDataLatestFarcasterSwapConnection!
+  latestRelevantFarcasterSwaps(fid: Int!, first: Int, after: String, filters: OnchainMarketDataLatestFarcasterSwapFilterArgs): OnchainMarketDataLatestFarcasterSwapConnection!
+}
+
+type OnchainMarketDataPriceTick {
+  id: ID!
+  median: Float!
+  open: Float!
+  close: Float!
+  high: Float!
+  low: Float!
+  timestamp: Timestamp!
+}
+
+type OnchainHistoricalPrice {
+  timestamp: Timestamp!
+  price: Float!
+}
+
+type PaginatedSupportedTokenHolders {
+  edges: [SupportedTokenHolderEdge!]!
+  totalCount: Int!
+  pageInfo: PageInfo!
+}
+
+type SupportedTokenHolderEdge {
+  node: SupportedTokenHolder!
+  cursor: String!
+}
+
+type SupportedTokenHolder {
+  id: ID!
+  holderAddress: String!
+  value: String!
+  percentileShare: Float!
+  account: Account!
+}
+
+enum TokenChannelFeedType {
+  DEFAULT
+  ALL_CASTS
+  FOLLOWED_SWAPS
+  ALL_SWAPS
+}
+
+input ChannelFeedFilterArgs {
+  minimumUsdVolume: Int
+  ignoreAutomated: Boolean
+  isBuy: Boolean
+}
+
+type FarcasterTokenFeedV2Connection {
+  edges: [FarcasterTokenFeedV2Edge!]!
+  pageInfo: PageInfo!
+}
+
+type FarcasterTokenFeedV2Edge {
+  node: FarcasterTokenFeedItem!
+  cursor: String!
+}
+
+type FarcasterTokenFeedItem {
+  id: ID!
+  chainId: Int!
+  tokenAddress: Address!
+  token: FungibleToken
+  buyCount: Int
+  buyerCount: Int
+  buyerCount24h: Int
+}
+
+type TokenChannelFeedConnection {
+  edges: [TokenChannelFeedItemEdge!]!
+  pageInfo: PageInfo!
+}
+
+type TokenChannelFeedItemEdge {
+  node: TokenChannelFeedNodeItem!
+  cursor: String!
+}
+
+union TokenChannelFeedNodeItem = ChannelFeedSwap | FarcasterTopCast
+
+type ChannelFeedSwap {
+  id: ID!
+  fid: Int!
+  transactionHash: String!
+  timestamp: Timestamp!
+  chainId: Int!
+  volumeUsd: String!
+  amount: Float!
+  isBuy: Boolean!
+}
+
+type FarcasterTopCast {
+  id: ID!
+  hash: String!
+  authorFid: Int!
+  text: String!
+  timestamp: Timestamp!
+}
+
+type PortfolioV2 {
+  metadata: PortfolioV2Metadata!
+  tokenBalances(enqueueSnapshotJobs: Boolean = true, enqueueTrackingJobs: Boolean = true): PortfolioV2TokenBalance!
+  appBalances(enqueueSnapshotJobs: Boolean = true, enqueueTrackingJobs: Boolean = true, forceRefreshTracking: Boolean = false): PortfolioV2AppBalance!
+  nftBalances(withOverrides: Boolean = false, waitForUpdate: Boolean = true, enqueueSnapshotJobs: Boolean = false): PortfolioV2NftBalance!
+}
+
+type PortfolioV2Metadata {
+  addresses: [Address!]!
+  networks: [Network!]!
+}
+
+type PortfolioV2TokenBalance {
+  totalBalanceUSD: Float!
+  byToken(first: Int = 25, after: String, filters: PortfolioV2TokenBalancesByTokenFiltersInput): PortfolioV2TokenBalanceByTokenConnection!
+  byAccount(first: Int = 25, after: String, filters: PortfolioV2TokenBalancesByAccountFiltersInput): PortfolioV2TokenBalancesByAccountConnection!
+  byNetwork(first: Int = 25, after: String, filters: PortfolioV2TokenBalancesByNetworkFiltersInput): PortfolioV2TokenBalancesByNetworkConnection!
+}
+
+type PortfolioV2TokenBalanceByToken {
+  id: ID!
+  tokenAddress: String!
+  networkId: ID!
+  name: String!
+  symbol: String!
+  decimals: Float!
+  balance: Float!
+  balanceUSD: Float!
+  balanceRaw: String!
+  imgUrlV2: String
+  network: NetworkObject!
+}
+
+type NetworkObject {
+  id: Int!
+  name: String!
+  slug: String!
+  chainId: Int
+}
+
+type FarcasterProfile {
+  id: ID!
+  username: String!
+  custodyAddress: String!
+  fid: Int!
+  connectedAddresses: [String!]!
+  metadata: FarcasterMetadata!
+}
+
+type FarcasterMetadata {
+  id: ID!
+  displayName: String
+  description: String
+  warpcast: String
+  imageUrl: String
+}
+
+type Account {
+  id: ID!
+  address: Address!
+  farcasterProfile: FarcasterProfile
+  ensRecord: EnsRecord
+}
+
+type EnsRecord {
+  name: Ens!
+  metadata: EnsMetadata!
+}
+
+scalar Ens
+
+type EnsMetadata {
+  avatar: EnsAvatar
+  description: String
+}
+
+union EnsAvatar = NftToken | AvatarUrl
+
+type AvatarUrl {
+  url: String!
+  mimeType: String
+}
+
+type NftToken {
+  id: ID!
+  tokenId: String!
+  name: String!
+}
+
+input TransactionHistoryV2FiltersArgs {
+  chainIds: [Int!]
+  tokenAddress: [Address!]
+  receivedFrom: [Address!]
+  sentTo: [Address!]
+  startDate: Timestamp
+  endDate: Timestamp
+  orderByDirection: OrderDirectionOption
+}
+
+enum OrderDirectionOption {
+  DESC
+  ASC
+}
+
+input PortfolioV2TokenBalancesByTokenFiltersInput {
+  minBalanceUSD: Float
+  symbolLike: String
+  tokenAddress: String
+  includeTokensWithMissingPrices: Boolean
+}
+
+input PortfolioV2TokenBalancesByAccountFiltersInput {
+  minBalanceUSD: Float
+  symbolLike: String
+  tokenAddress: String
+  includeTokensWithMissingPrices: Boolean
+}
+
+input PortfolioV2TokenBalancesByNetworkFiltersInput {
+  minBalanceUSD: Float
+  symbolLike: String
+  tokenAddress: String
+  includeTokensWithMissingPrices: Boolean
+}
+
+type PortfolioV2TokenBalanceByTokenEdge {
+  node: PortfolioV2TokenBalanceByToken!
+  cursor: String!
+}
+
+type PortfolioV2TokenBalanceByTokenConnection {
+  edges: [PortfolioV2TokenBalanceByTokenEdge!]!
+  pageInfo: PageInfo!
+}
+
+type PageInfo {
+  hasPreviousPage: Boolean!
+  hasNextPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+type PortfolioV2TokenBalancesByAccount { id: ID! accountAddress: Address! account: Account! balanceUSD: Float! tokenBalances(first: Int = 5): PortfolioV2TokenBalanceByAccountTokenBalanceConnection! }
+type PortfolioV2TokenBalancesByAccountEdge { node: PortfolioV2TokenBalancesByAccount! cursor: String! }
+type PortfolioV2TokenBalancesByAccountConnection { edges: [PortfolioV2TokenBalancesByAccountEdge!]! pageInfo: PageInfo! totalCount: Int! }
+type PortfolioV2TokenBalanceByAccountTokenBalance { id: ID! tokenAddress: String! symbol: String! balance: Float! balanceUSD: Float! network: NetworkObject! }
+type PortfolioV2TokenBalanceByAccountTokenBalanceEdge { node: PortfolioV2TokenBalanceByAccountTokenBalance! cursor: String! }
+type PortfolioV2TokenBalanceByAccountTokenBalanceConnection { edges: [PortfolioV2TokenBalanceByAccountTokenBalanceEdge!]! pageInfo: PageInfo! }
+type PortfolioV2TokenBalancesByNetwork { id: ID! networkId: ID! network: NetworkObject! balanceUSD: Float! }
+type PortfolioV2TokenBalancesByNetworkEdge { node: PortfolioV2TokenBalancesByNetwork! cursor: String! }
+type PortfolioV2TokenBalancesByNetworkConnection { edges: [PortfolioV2TokenBalancesByNetworkEdge!]! pageInfo: PageInfo! totalCount: Int! }
+
+union TransactionHistoryV2Entry = TimelineEventV2 | ActivityTimelineEventDelta
+type TimelineEventV2 { id: ID! hash: String! network: Network! timestamp: Timestamp! transaction: OnChainTransaction! interpretation: ActivityInterpretation! }
+type ActivityTimelineEventDelta { id: ID! transactionHash: String! network: Network! transactionBlockTimestamp: Timestamp! perspectiveAccount: Account! }
+type ActivityInterpretation { processedDescription: String! }
+type OnChainTransaction { hash: String! timestamp: Timestamp! network: Network! from: Address! to: Address }
+
+type TransactionHistoryV2EntryEdge { node: TransactionHistoryV2Entry! cursor: String! }
+type TransactionHistoryV2EntryConnection { edges: [TransactionHistoryV2EntryEdge!]! pageInfo: PageInfo! totalCount: Int! }
+
+type PortfolioV2AppBalance { totalBalanceUSD: Float! }
+type PortfolioV2NftBalance { totalBalanceUSD: Float! totalTokensOwned: String! distinctTokensOwned: String! }

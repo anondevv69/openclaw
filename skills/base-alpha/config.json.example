@@ -1,0 +1,7 @@
+{
+  "followedWallets": [],
+  "defaultPositionUsd": 5,
+  "maxPositionPercent": 10,
+  "castChannel": "base",
+  "enableHourlyPolymarketScan": true
+}

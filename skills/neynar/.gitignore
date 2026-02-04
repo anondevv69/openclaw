@@ -1,0 +1,6 @@
+# Secrets - never commit these
+.env
+config.json
+
+# Keep examples
+!.env.example
