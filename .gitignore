@@ -71,3 +71,16 @@ USER.md
 
 # local tooling
 .serena/
+
+ # Cloned external skill repo (skills copied into skills/)
+moltbot-skills/
+
+# Skill secrets (API keys)
+skills/bankr/config.json
+skills/neynar/config.json
+skills/neynar/.env
+skills/zora/config.json
+skills/zora/.env
+skills/infobot/config.json
+skills/zapper/config.json
+skills/base-alpha/config.json
