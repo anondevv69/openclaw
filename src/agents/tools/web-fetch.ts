@@ -54,6 +54,23 @@ const WebFetchSchema = Type.Object({
       minimum: 100,
     }),
   ),
+  method: Type.Optional(
+    Type.String({
+      description:
+        "HTTP method. Default GET. Use POST for GraphQL or JSON APIs (e.g. Zapper). Set with headers and body as needed.",
+    }),
+  ),
+  headers: Type.Optional(
+    Type.Record(Type.String(), Type.String(), {
+      description:
+        "Optional request headers (e.g. Content-Type, x-api-key, x-apollo-operation-name for GraphQL CSRF).",
+    }),
+  ),
+  body: Type.Optional(
+    Type.String({
+      description: "Request body for POST/PUT/PATCH (e.g. JSON string for GraphQL).",
+    }),
+  ),
 });
 
 type WebFetchConfig = NonNullable<OpenClawConfig["tools"]>["web"] extends infer Web
@@ -351,6 +368,9 @@ export async function fetchFirecrawlContent(params: {
 
 async function runWebFetch(params: {
   url: string;
+  method?: string;
+  headers?: Record<string, string>;
+  body?: string;
   extractMode: ExtractMode;
   maxChars: number;
   maxRedirects: number;
@@ -367,8 +387,16 @@ async function runWebFetch(params: {
   firecrawlStoreInCache: boolean;
   firecrawlTimeoutSeconds: number;
 }): Promise<Record<string, unknown>> {
+  const method = (params.method ?? "GET").toUpperCase();
+  const hasCustom = Boolean(
+    (params.headers && Object.keys(params.headers).length > 0) ||
+    (params.body && params.body.length > 0),
+  );
+  const useCustomRequest = method !== "GET" || hasCustom;
   const cacheKey = normalizeCacheKey(
-    `fetch:${params.url}:${params.extractMode}:${params.maxChars}`,
+    useCustomRequest
+      ? `fetch:${params.url}:${method}:${params.extractMode}:${params.maxChars}:${params.body ?? ""}`
+      : `fetch:${params.url}:${params.extractMode}:${params.maxChars}`,
   );
   const cached = readCache(FETCH_CACHE, cacheKey);
   if (cached) {
@@ -390,17 +418,25 @@ async function runWebFetch(params: {
   let release: (() => Promise<void>) | null = null;
   let finalUrl = params.url;
   try {
+    const defaultHeaders: Record<string, string> = {
+      Accept: "*/*",
+      "User-Agent": params.userAgent,
+      "Accept-Language": "en-US,en;q=0.9",
+    };
+    const init: RequestInit = {
+      method,
+      headers: useCustomRequest
+        ? { ...defaultHeaders, ...(params.headers ?? {}) }
+        : defaultHeaders,
+    };
+    if (useCustomRequest && params.body !== undefined && params.body !== "" && method !== "GET") {
+      init.body = params.body;
+    }
     const result = await fetchWithSsrFGuard({
       url: params.url,
       maxRedirects: params.maxRedirects,
       timeoutMs: params.timeoutSeconds * 1000,
-      init: {
-        headers: {
-          Accept: "*/*",
-          "User-Agent": params.userAgent,
-          "Accept-Language": "en-US,en;q=0.9",
-        },
-      },
+      init,
     });
     res = result.response;
     finalUrl = result.finalUrl;
@@ -640,15 +676,32 @@ export function createWebFetchTool(options?: {
     label: "Web Fetch",
     name: "web_fetch",
     description:
-      "Fetch and extract readable content from a URL (HTML → markdown/text). Use for lightweight page access without browser automation.",
+      "Fetch and extract readable content from a URL (HTML → markdown/text). Supports GET by default; use optional method (POST), headers (e.g. Content-Type, x-api-key, x-apollo-operation-name for GraphQL), and body for APIs like Zapper GraphQL or Neynar.",
     parameters: WebFetchSchema,
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
       const url = readStringParam(params, "url", { required: true });
       const extractMode = readStringParam(params, "extractMode") === "text" ? "text" : "markdown";
       const maxChars = readNumberParam(params, "maxChars", { integer: true });
+      const method = readStringParam(params, "method", { required: false });
+      const body = readStringParam(params, "body", { required: false });
+      let headers: Record<string, string> | undefined;
+      if (
+        params.headers != null &&
+        typeof params.headers === "object" &&
+        !Array.isArray(params.headers)
+      ) {
+        headers = {};
+        for (const [k, v] of Object.entries(params.headers)) {
+          if (typeof k === "string" && typeof v === "string") headers[k] = v;
+        }
+        if (Object.keys(headers).length === 0) headers = undefined;
+      }
       const result = await runWebFetch({
         url,
+        method: method ?? undefined,
+        headers,
+        body: body ?? undefined,
         extractMode,
         maxChars: resolveMaxChars(maxChars ?? fetch?.maxChars, DEFAULT_FETCH_MAX_CHARS),
         maxRedirects: resolveMaxRedirects(fetch?.maxRedirects, DEFAULT_FETCH_MAX_REDIRECTS),

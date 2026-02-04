@@ -226,7 +226,7 @@ export function buildAgentSystemPrompt(params: {
     exec: "Run shell commands (pty available for TTY-required CLIs)",
     process: "Manage background exec sessions",
     web_search: "Search the web (Brave API)",
-    web_fetch: "Fetch and extract readable content from a URL",
+    web_fetch: "Fetch URL (GET or POST with headers/body for GraphQL or API key auth)",
     // Channel docking: add login tools here when a channel needs interactive linking.
     browser: "Control web browser",
     canvas: "Present/eval/snapshot the Canvas",
